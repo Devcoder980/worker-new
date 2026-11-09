@@ -278,4 +278,4 @@ app.use("/*", serveStatic({ root: DIST }));
 app.get("*", serveStatic({ path: `${DIST}/index.html` }));
 
 console.log(`Worker registration running on http://localhost:${PORT}`);
-export default { port: PORT, fetch: app.fetch, maxRequestBodySize: 12 * 1024 * 1024 };
+export default { port: PORT, hostname: process.env.HOST || "0.0.0.0", fetch: app.fetch, maxRequestBodySize: 12 * 1024 * 1024 };
