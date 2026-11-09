@@ -1,0 +1,15 @@
+{
+  "name": "worker-registration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch server/index.ts",
+    "dev:web": "cd web && bun run dev",
+    "build": "cd web && bun install && bun run build",
+    "start": "bun server/index.ts"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "sharp": "^0.33.5"
+  }
+}
