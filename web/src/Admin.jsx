@@ -11,7 +11,9 @@ export default function Admin() {
     api("/api/admin/stats").then(() => setAuthed(true)).catch(() => setAuthed(false));
   }, []);
 
-  if (authed === null) return <main className="page"><p className="muted center">Loading…</p></main>;
+  useEffect(() => window.scrollTo(0, 0), [view.name, view.key]);
+
+  if (authed === null) return <main className="page"><p className="muted center"><span className="spinner dark" /> Loading…</p></main>;
   if (!authed) return <Login onDone={() => setAuthed(true)} />;
 
   const toList = () => setView({ name: "list" });
@@ -19,10 +21,9 @@ export default function Admin() {
 
   if (view.name === "add")
     return (
-      <main className="page">
-        <h1 className="title">नया वर्कर / Add Worker</h1>
-        <WorkerForm key={view.key} mode="add" onSaved={(w) => setView({ name: "added", worker: w })} onCancel={toList} />
-      </main>
+      <Screen title="नया वर्कर" sub="Add worker" onBack={toList}>
+        <WorkerForm key={view.key} mode="add" onSaved={(w) => setView({ name: "added", worker: w })} />
+      </Screen>
     );
 
   if (view.name === "added")
@@ -30,23 +31,35 @@ export default function Admin() {
       <main className="page">
         <div className="success">
           <div className="tick">✓</div>
-          <h1>सेव हो गया / Saved</h1>
-          <p>{view.worker.name} — {view.worker.mobile}</p>
+          <h1>सेव हो गया</h1>
+          <p className="saved-name">{view.worker.name}<br /><span className="muted">{view.worker.mobile}</span></p>
           <button className="btn primary big" onClick={() => setView({ name: "add", key: Date.now() })}>
-            ➕ अगला वर्कर / Add Another Worker
+            ➕ अगला वर्कर जोड़ें
+            <small>Add another worker</small>
           </button>
           <button className="btn secondary" onClick={toList}>लिस्ट देखें / View list</button>
         </div>
       </main>
     );
 
-  if (view.name === "edit")
+  if (view.name === "edit") {
+    const w = view.worker;
+    const remove = async () => {
+      if (!confirm(`${w.name} (${w.mobile}) को हटाना है?\nDelete this worker?`)) return;
+      try {
+        await api(`/api/admin/workers/${w.id}`, { method: "DELETE" });
+        toList();
+      } catch (e) {
+        onAuthError(e);
+        alert(e.message);
+      }
+    };
     return (
-      <main className="page">
-        <h1 className="title">एडिट / Edit Worker</h1>
-        <WorkerForm mode="edit" worker={view.worker} onSaved={toList} onCancel={toList} />
-      </main>
+      <Screen title="एडिट करें" sub={w.name} onBack={toList}>
+        <WorkerForm mode="edit" worker={w} onSaved={toList} onDelete={remove} />
+      </Screen>
     );
+  }
 
   if (view.name === "qr") return <QrView onBack={toList} />;
 
@@ -58,6 +71,21 @@ export default function Admin() {
       onAuthError={onAuthError}
       onLogout={async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); setAuthed(false); }}
     />
+  );
+}
+
+function Screen({ title, sub, onBack, children }) {
+  return (
+    <main className="page">
+      <header className="screen-head">
+        <button className="back" onClick={onBack} aria-label="Back">←</button>
+        <div>
+          <h1>{title}</h1>
+          {sub && <p className="muted">{sub}</p>}
+        </div>
+      </header>
+      {children}
+    </main>
   );
 }
 
@@ -82,27 +110,34 @@ function Login({ onDone }) {
 
   return (
     <main className="page narrow">
-      <h1 className="title">🔒 Admin Login</h1>
+      <div className="login-mark">👷</div>
+      <h1 className="center-text">एडमिन लॉगिन</h1>
+      <p className="muted center-text">Admin login</p>
       <form className="form" onSubmit={submit}>
-        <label>
-          <span>पासवर्ड / Password</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus autoComplete="current-password" />
-        </label>
+        <input type="text" name="username" value="admin" autoComplete="username" readOnly hidden />
+        <div className="field">
+          <label htmlFor="pw">पासवर्ड <small>Password</small></label>
+          <input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus autoComplete="current-password" />
+        </div>
         {error && <p className="error">{error}</p>}
-        <button className="btn primary" disabled={busy || !password}>{busy ? "…" : "Login"}</button>
+        <button className="btn primary" disabled={busy || !password}>
+          {busy ? <span className="spinner" /> : "लॉगिन करें / Login"}
+        </button>
       </form>
     </main>
   );
 }
 
 function Dashboard({ onAdd, onEdit, onQr, onLogout, onAuthError }) {
-  const [stats, setStats] = useState({ total: 0, today: 0 });
+  const [stats, setStats] = useState(null);
   const [workers, setWorkers] = useState(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function load() {
+    setLoading(true);
     try {
       const q = new URLSearchParams({ search, category });
       const [s, list] = await Promise.all([api("/api/admin/stats"), api(`/api/admin/workers?${q}`)]);
@@ -112,79 +147,86 @@ function Dashboard({ onAdd, onEdit, onQr, onLogout, onAuthError }) {
     } catch (e) {
       onAuthError(e);
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    const t = setTimeout(load, 250);
+    const t = setTimeout(load, search ? 300 : 0);
     return () => clearTimeout(t);
   }, [search, category]);
 
-  async function remove(w) {
-    if (!confirm(`Delete ${w.name} (${w.mobile})? / हटाएँ?`)) return;
-    try {
-      await api(`/api/admin/workers/${w.id}`, { method: "DELETE" });
-      load();
-    } catch (e) {
-      alert(e.message);
-    }
-  }
+  const filtered = search || category;
 
   return (
-    <main className="page wide">
+    <main className="page wide has-fab">
       <header className="topbar">
-        <h1>👷 Workers</h1>
-        <button className="link" onClick={onLogout}>Logout</button>
+        <div>
+          <h1>👷 वर्कर्स</h1>
+          <p className="muted">
+            कुल <b>{stats?.total ?? "–"}</b> · आज <b>{stats?.today ?? "–"}</b>
+          </p>
+        </div>
+        <div className="top-actions">
+          <button className="icon-btn" onClick={onQr}><span>▦</span>QR</button>
+          <a className="icon-btn" href="/api/admin/export.csv"><span>⬇</span>CSV</a>
+          <button className="icon-btn" onClick={onLogout}><span>⏻</span>Logout</button>
+        </div>
       </header>
 
-      <div className="stats">
-        <div><b>{stats.total}</b><span>कुल / Total</span></div>
-        <div><b>{stats.today}</b><span>आज / Today</span></div>
-      </div>
-
-      <div className="toolbar">
-        <button className="btn primary" onClick={onAdd}>➕ वर्कर जोड़ें / Add</button>
-        <button className="btn secondary" onClick={onQr}>QR कोड</button>
-        <a className="btn secondary" href="/api/admin/export.csv">⬇ CSV</a>
-      </div>
-
-      <div className="filters">
-        <input type="search" placeholder="नाम या मोबाइल खोजें / Search" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">सभी काम / All</option>
-          {CATEGORIES.map(([v, hi]) => <option key={v} value={v}>{hi}</option>)}
-        </select>
+      <div className="sticky-search">
+        <div className="search">
+          <span aria-hidden>🔍</span>
+          <input type="search" placeholder="नाम या मोबाइल खोजें" value={search} onChange={(e) => setSearch(e.target.value)} enterKeyHint="search" />
+          {loading && <span className="spinner dark small" />}
+        </div>
+        <div className="chips" role="tablist">
+          <button className={!category ? "chip on" : "chip"} onClick={() => setCategory("")}>सभी</button>
+          {CATEGORIES.map(([v, hi, icon]) => (
+            <button key={v} className={category === v ? "chip on" : "chip"} onClick={() => setCategory(category === v ? "" : v)}>
+              {icon} {hi}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && <p className="error">{error}</p>}
+      {filtered && workers && <p className="muted result-count">{workers.length} मिले / found</p>}
+
       {workers === null ? (
-        <p className="muted center">Loading…</p>
+        <ul className="cards">{[0, 1, 2].map((i) => <li key={i} className="card skeleton" />)}</ul>
       ) : workers.length === 0 ? (
-        <p className="muted center">कोई वर्कर नहीं मिला / No workers found</p>
+        <div className="empty-state">
+          <div>📋</div>
+          {filtered ? <p>कोई वर्कर नहीं मिला<br /><small>No workers found</small></p> : <p>अभी कोई वर्कर नहीं है<br /><small>Tap “Add worker” below or share the QR code</small></p>}
+        </div>
       ) : (
         <ul className="cards">
           {workers.map((w) => (
             <li key={w.id} className="card">
-              {w.photo_path ? (
-                <img src={`/api/admin/photos/${w.photo_path}`} alt="" loading="lazy" />
-              ) : (
-                <div className="noimg">👤</div>
-              )}
-              <div className="info">
-                <strong>{w.name}</strong>
-                <a className="phone" href={`tel:+91${w.mobile}`}>📞 {w.mobile}</a>
-                <span className="tag">{categoryLabel(w.work_category)}</span>
-                {w.area && <span className="muted">📍 {w.area}</span>}
-                {w.work_description && <span className="muted desc">{w.work_description}</span>}
-              </div>
-              <div className="card-actions">
-                <button className="link" onClick={() => onEdit(w)}>Edit</button>
-                <button className="link danger" onClick={() => remove(w)}>Delete</button>
-              </div>
+              <button className="card-main" onClick={() => onEdit(w)}>
+                {w.photo_path ? (
+                  <img src={`/api/admin/photos/${w.photo_path}`} alt="" loading="lazy" />
+                ) : (
+                  <div className="noimg">{w.name.trim()[0]?.toUpperCase()}</div>
+                )}
+                <div className="info">
+                  <strong>{w.name}</strong>
+                  <span className="sub">{w.mobile}{w.area ? ` · 📍 ${w.area}` : ""}</span>
+                  <span className="tag">{categoryLabel(w.work_category)}</span>
+                  {w.work_description && <span className="desc">{w.work_description}</span>}
+                </div>
+              </button>
+              <a className="call" href={`tel:+91${w.mobile}`} aria-label={`Call ${w.name}`}>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="#fff" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>
+              </a>
             </li>
           ))}
         </ul>
       )}
+
+      <button className="fab" onClick={onAdd}>➕ वर्कर जोड़ें <small>Add</small></button>
     </main>
   );
 }
@@ -194,7 +236,7 @@ function QrView({ onBack }) {
   const url = window.location.origin + "/";
 
   useEffect(() => {
-    QRCode.toCanvas(canvas.current, url, { width: 320, margin: 2 });
+    QRCode.toCanvas(canvas.current, url, { width: 280, margin: 2 });
   }, [url]);
 
   async function download() {
@@ -206,17 +248,13 @@ function QrView({ onBack }) {
   }
 
   return (
-    <main className="page">
-      <h1 className="title">QR कोड / Registration QR</h1>
+    <Screen title="QR कोड" sub="Workers scan this to register" onBack={onBack}>
       <div className="qr">
         <canvas ref={canvas} />
-        <p>स्कैन करें और रजिस्टर करें<br /><small>Scan to register</small></p>
+        <p className="qr-text">स्कैन करें और रजिस्टर करें</p>
         <code>{url}</code>
       </div>
-      <div className="actions">
-        <button className="btn secondary" onClick={onBack}>← Back</button>
-        <button className="btn primary" onClick={download}>⬇ Download PNG</button>
-      </div>
-    </main>
+      <button className="btn primary full" onClick={download}>⬇ QR डाउनलोड करें / Download</button>
+    </Screen>
   );
 }

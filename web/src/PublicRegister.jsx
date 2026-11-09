@@ -11,7 +11,8 @@ export default function PublicRegister() {
         <div className="success">
           <div className="tick">✓</div>
           <h1>रजिस्ट्रेशन हो गया!</h1>
-          <p>Registration successful{done.name ? `, ${done.name}` : ""}.</p>
+          <p className="saved-name">{done.name}</p>
+          <p>Registration successful</p>
           <p className="muted">काम मिलने पर हम आपको फोन करेंगे। / We will call you when work is available.</p>
           <button className="btn secondary" onClick={() => { setDone(null); setKey(key + 1); }}>
             दूसरा रजिस्ट्रेशन / Register another
@@ -23,9 +24,12 @@ export default function PublicRegister() {
 
   return (
     <main className="page">
-      <header className="head">
-        <h1>👷 मजदूर रजिस्ट्रेशन</h1>
-        <p className="muted">Worker Registration — 1 मिनट में फॉर्म भरें</p>
+      <header className="hero">
+        <div className="hero-icon">👷</div>
+        <div>
+          <h1>काम के लिए रजिस्टर करें</h1>
+          <p>Register for work · 1 मिनट</p>
+        </div>
       </header>
       <WorkerForm key={key} mode="public" onSaved={setDone} />
     </main>

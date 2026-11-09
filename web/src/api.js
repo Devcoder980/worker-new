@@ -1,16 +1,17 @@
+// [value saved in DB, Hindi label, icon]
 export const CATEGORIES = [
-  ["Helper", "हेल्पर"],
-  ["Mason", "मिस्त्री / राजमिस्त्री"],
-  ["Painter", "पेंटर"],
-  ["Electrician", "इलेक्ट्रीशियन"],
-  ["Plumber", "प्लंबर"],
-  ["Loading/Unloading", "लोडिंग / अनलोडिंग"],
-  ["Factory Worker", "फैक्ट्री वर्कर"],
-  ["Other", "अन्य"],
+  ["Helper", "हेल्पर", "🧰"],
+  ["Mason", "मिस्त्री", "🧱"],
+  ["Painter", "पेंटर", "🖌️"],
+  ["Electrician", "इलेक्ट्रीशियन", "💡"],
+  ["Plumber", "प्लंबर", "🔧"],
+  ["Loading/Unloading", "लोडिंग / अनलोडिंग", "📦"],
+  ["Factory Worker", "फैक्ट्री वर्कर", "🏭"],
+  ["Other", "अन्य", "➕"],
 ];
 export const categoryLabel = (v) => {
   const c = CATEGORIES.find(([k]) => k === v);
-  return c ? `${c[1]} / ${c[0]}` : v;
+  return c ? `${c[2]} ${c[1]}` : v;
 };
 
 export async function api(path, options = {}) {
