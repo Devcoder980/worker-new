@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES, api, shrinkPhoto } from "./api.js";
+import CameraCapture from "./CameraCapture.jsx";
 
 const empty = { name: "", mobile: "", work_category: "", work_description: "", area: "", consent: false };
 
@@ -19,12 +20,21 @@ export default function WorkerForm({ mode, worker, onSaved, onCancel }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const nameRef = useRef(null);
+  const nativeCam = useRef(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   useEffect(() => {
     if (mode !== "public") nameRef.current?.focus();
   }, [mode]);
 
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+
+  function takePhoto(file) {
+    setPhoto(file);
+    setRemovePhoto(false);
+    setPreview(URL.createObjectURL(file));
+    setCameraOpen(false);
+  }
 
   async function pickPhoto(e) {
     const file = e.target.files?.[0];
@@ -97,10 +107,10 @@ export default function WorkerForm({ mode, worker, onSaved, onCancel }) {
             <div className="photo-preview empty">👤</div>
           )}
           <div className="photo-buttons">
-            <label className="btn secondary">
+            <button type="button" className="btn secondary" onClick={() => setCameraOpen(true)}>
               📷 कैमरा / Camera
-              <input type="file" accept="image/*" capture={mode === "public" ? "user" : "environment"} onChange={pickPhoto} hidden />
-            </label>
+            </button>
+            <input ref={nativeCam} type="file" accept="image/*" capture={mode === "public" ? "user" : "environment"} onChange={pickPhoto} hidden />
             <label className="btn secondary">
               🖼️ गैलरी / Gallery
               <input type="file" accept="image/jpeg,image/png,image/webp" onChange={pickPhoto} hidden />
@@ -144,6 +154,15 @@ export default function WorkerForm({ mode, worker, onSaved, onCancel }) {
             <small>I agree to store my details and be contacted for work.</small>
           </span>
         </label>
+      )}
+
+      {cameraOpen && (
+        <CameraCapture
+          initialFacing={mode === "public" ? "user" : "environment"}
+          onCapture={takePhoto}
+          onClose={() => setCameraOpen(false)}
+          onFallback={() => { setCameraOpen(false); nativeCam.current?.click(); }}
+        />
       )}
 
       {error && <p className="error" role="alert">{error}</p>}
